@@ -1,0 +1,11 @@
+models/*
+datasets/global_solvable_problems.pkl
+datasets/hybrid_solvable_problems.pkl
+datasets/both_solvable_problems.pkl
+datasets/__pycache__/*
+wandb/*
+mpinets/__pycache__/*
+mpinets/__pycache__/*
+diffusion/__pycache__/*
+lib/__pycache__/*
+mpinets/__pycache__/*

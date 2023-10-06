@@ -1,0 +1,23 @@
+index: 13
+
+hyperparameters:
+  batch_size: 10
+  obstacle_clearance:
+    range: [0.0, 0.0] # linearly increasing
+  obstacle_expansion:
+    isr1: [150, 255]
+    val1: [0.4, 0.4]
+    isr2: [20, 150]
+    val2: [0.0, 0.4]
+    isr3: [0, 20]
+    val3: [0., 0.]
+  guidance_method: 'sv' # 'iv': intersection_volume; 'sv': swept_volume; 'ipv': interpolated_volume
+  grad_norm: True
+  guidance_period: 2
+  guidance_stop_timestep: 5
+  guidance_schedule:
+    type: 'constant' # 'constant' or 'varying' (1.4 + (t/self.T))
+    scale_val: 0.01 # Value used to scale the gradients (if type=='constant')
+  volume_trust_region: 0.0008 # 0.001
+
+

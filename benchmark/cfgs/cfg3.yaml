@@ -1,0 +1,24 @@
+guide:
+  guides: [11, 13, 14]
+  guide_path: './guides/'
+dataset:
+  path: './datasets/'
+  dataset_type: 'hybrid' # 'global' # or 'hybrid'
+  scene_types: ['tabletop', 'cubby', 'merged_cubby', 'dresser'] # 'tabletop'
+  num_scenes_per_type: -1 # -1 implies all scenes per type
+  random_scenes: False # If true, samples 'num_scenes_per_type' number of scenes randomly
+  save_scene_indices: True # Saves the scene indices in their corresponding order
+model:
+  model_dir: './models/' # Directory where the model isi
+  device: 'cuda:1'
+  T: 255
+  traj_len: 50
+  num_channels: 7
+general:
+  gui: False # Set as false when running on servers
+  save_dir: './results3/' # Directory to save the scenes
+  wandb:
+    enable_wandb: True
+    run_num: 1
+    project_name: 'Test Set Diffusion Benchmark Hybrid 2'
+
