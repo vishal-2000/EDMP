@@ -15,7 +15,8 @@
 
 This is the official implementation of the paper "EDMP: Ensemble-of-Costs Guided Diffusion For Motion Planning", which is currently under review
 
-<img src="./results/teaser_compressed.gif">
+![teaser_compressed (1)](https://github.com/vishal-2000/EDMP/assets/56213799/1ea9d638-1231-4e7e-b283-f8a5eaa7ba73)
+
 <!-- <video src="results/teaser_compressed.mp4"> # "https://ensemble-of-costs-diffusion.github.io/videos/teaser_compressed.mp4"> -->
 
 For more details and results, visit our [project page](https://ensemble-of-costs-diffusion.github.io/) and read our [paper](https://arxiv.org/abs/2309.11414).
