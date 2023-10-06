@@ -122,13 +122,13 @@ guides: [1, 2, 3]
 ## Citation
 If you find our work useful in your research, please cite:
 ```
-@article{Saha2023EDMPED,
-  title={EDMP: Ensemble-of-costs-guided Diffusion for Motion Planning},
-  author={Kallol Saha and Vishal Reddy Mandadi and Jayaram Reddy and Ajit Srikanth and Aditya Agarwal and Bipasha Sen and Arun Singh and Madhava Krishna},
-  journal={ArXiv},
-  year={2023},
-  volume={abs/2309.11414},
-  url={https://api.semanticscholar.org/CorpusID:262064796}
+@misc{saha2023edmp,
+      title={EDMP: Ensemble-of-costs-guided Diffusion for Motion Planning}, 
+      author={Kallol Saha and Vishal Mandadi and Jayaram Reddy and Ajit Srikanth and Aditya Agarwal and Bipasha Sen and Arun Singh and Madhava Krishna},
+      year={2023},
+      eprint={2309.11414},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO}
 }
 ```
 
