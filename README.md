@@ -1,6 +1,6 @@
 # EDMP: Ensemble-of-Costs Guided Diffusion For Motion Planning
 
-[Kallol Saha](http://kallol-saha.github.io/) <sup>\*1</sup>,
+[Kallol Saha](https://www.linkedin.com/in/kallolsaha/) <sup>\*1</sup>,
 [Vishal Mandadi](https://vishal-2000.github.io/) <sup>\*1</sup>,
 [Jayaram Reddy](http://www.linkedin.com/in/jayaram6111997) <sup>\*1</sup>,
 [Ajit Srikanth](https://twitter.com/ajitsrikanth) <sup>1</sup>,
