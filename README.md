@@ -27,7 +27,7 @@ For more details and results, visit our [project page](https://ensemble-of-costs
    2. Release Status: Beta version out
 2. Parallel version
    1. Classifiers will be run in parallel
-   2. Release status: Will be out by 1st November, 2023
+   2. Release status: Will be out by 19st November, 2023
 
 ## Setting up
 1. Clone this repository with all the submodules
