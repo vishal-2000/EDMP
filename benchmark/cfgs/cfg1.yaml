@@ -1,5 +1,5 @@
 guide:
-  guides: [1, 2, 3] #, 4, 5, 10] #, 11] #, 13, 14, 16, 18, 21] # [1, 2, 3]
+  guides: [1, 2, 3, 4, 5, 10, 11, 13, 14, 16, 18, 21] # [1, 2, 3]
   guide_path: './guides/'
 dataset:
   path: './datasets/'
