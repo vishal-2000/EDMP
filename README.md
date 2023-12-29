@@ -120,6 +120,9 @@ You can control the number of guides you want to run in parallel, and what guide
 guides: [1, 2, 3]
 ```
 
+## Results
+- For replicating the results shown in the paper, please use cfg ```./benchmark/cfgs/cfg1.yaml```
+
 ## Citation
 If you find our work useful in your research, please cite:
 ```
