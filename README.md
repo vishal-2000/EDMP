@@ -38,6 +38,7 @@ For more details and results, visit our [project page](https://ensemble-of-costs
    ```bash
    cd robofin
    git checkout v0.0.1
+   cd ..
    ``` 
 3. Install robofin
    ```bash
