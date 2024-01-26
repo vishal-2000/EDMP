@@ -15,10 +15,9 @@ hyperparameters:
     val_range2: [0.4, 0.]
     ind_set_range3: [20, 0]
     val_range3: [0., 0.]
-  guidance_method: 'iv' # 'iv': intersection_volume; 'sv': swept_volume; 'ipv': interpolated_volume
+  guidance_method: 'iv' # 'iv': intersection_volume; 'sv': swept_volume
   grad_norm: True
-  guidance_period: 2
-  guidance_stop_timestep: 5
+  
   guidance_schedule:
     type: 'constant' # 'constant' or 'varying' (1.4 + (t/self.T))
     scale_val: 0.05

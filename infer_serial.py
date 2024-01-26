@@ -53,30 +53,43 @@ if __name__=='__main__':
 
     enable_wandb = benchmark_cfg['general']['wandb']['enable_wandb']
     
+    num_guides = len(guides)
+    batch_size_per_guide = benchmark_cfg['guide']['batch_size_per_guide']
+    total_batch_size = int(num_guides * batch_size_per_guide)
+    guide_cfgs = {'batch_size_per_guide': batch_size_per_guide,
+                  'total_batch_size': total_batch_size,
+                  'clearance': np.zeros((total_batch_size, T)),
+                  'expansion': np.zeros((total_batch_size, T)),
+                  'guidance_method': np.zeros((total_batch_size,)),
+                  'grad_norm': np.zeros((total_batch_size,)),
+                  'guidance_schedule': np.zeros((total_batch_size, T)),
+                  'volume_trust_region': np.zeros((total_batch_size,))
+                  }
 
-    guide_cfgs = []
 
-    for g_index in guides:
-        print(f"Loading Guide {g_index}" + "+-+-"*10)
-        g_cfg = YamlConfig(benchmark_cfg['guide']['guide_path'] + f'cfgs/guide{g_index}.yaml')
-        obstacle_clearance = np.linspace(g_cfg['hyperparameters']['obstacle_clearance']['range'][0], g_cfg['hyperparameters']['obstacle_clearance']['range'][1], 255)
-        expansion_schedule = np.ones(shape = (255,))
+    for i in range(len(guides)):
+
+        print(f"Loading Guide {guides[i]}" + "+-+-"*10)
+        g_cfg = YamlConfig(benchmark_cfg['guide']['guide_path'] + f'cfgs/guide{guides[i]}.yaml')
+        
+        guide_cfgs['clearance'][i * batch_size_per_guide : (i+1) * batch_size_per_guide, :] = np.linspace(g_cfg['hyperparameters']['obstacle_clearance']['range'][0], g_cfg['hyperparameters']['obstacle_clearance']['range'][1], T)
+        
         o_e_cfg = g_cfg['hyperparameters']['obstacle_expansion']
-        expansion_schedule[o_e_cfg['isr1'][0]: o_e_cfg['isr1'][1]] = np.linspace(o_e_cfg['val1'][0], o_e_cfg['val1'][1], num=abs(o_e_cfg['isr1'][1] - o_e_cfg['isr1'][0]))
-        expansion_schedule[o_e_cfg['isr2'][0]: o_e_cfg['isr2'][1]] = np.linspace(o_e_cfg['val2'][0], o_e_cfg['val2'][1], num=abs(o_e_cfg['isr2'][1] - o_e_cfg['isr2'][0]))
-        expansion_schedule[o_e_cfg['isr3'][0]: o_e_cfg['isr3'][1]] = np.linspace(o_e_cfg['val3'][0], o_e_cfg['val3'][1], num=abs(o_e_cfg['isr3'][1] - o_e_cfg['isr3'][0]))
-        volume_trust_region = g_cfg['hyperparameters']['volume_trust_region']
+        guide_cfgs['expansion'][i * batch_size_per_guide : (i+1) * batch_size_per_guide, o_e_cfg['isr1'][0] : o_e_cfg['isr1'][1]] = np.linspace(o_e_cfg['val1'][0], o_e_cfg['val1'][1], num=abs(o_e_cfg['isr1'][1] - o_e_cfg['isr1'][0]))
+        guide_cfgs['expansion'][i * batch_size_per_guide : (i+1) * batch_size_per_guide, o_e_cfg['isr2'][0] : o_e_cfg['isr2'][1]] = np.linspace(o_e_cfg['val2'][0], o_e_cfg['val2'][1], num=abs(o_e_cfg['isr2'][1] - o_e_cfg['isr2'][0]))
+        guide_cfgs['expansion'][i * batch_size_per_guide : (i+1) * batch_size_per_guide, o_e_cfg['isr3'][0] : o_e_cfg['isr3'][1]] = np.linspace(o_e_cfg['val3'][0], o_e_cfg['val3'][1], num=abs(o_e_cfg['isr3'][1] - o_e_cfg['isr3'][0]))
+        
+        # expansion_schedule = np.ones(shape = (255,))
+        # expansion_schedule[o_e_cfg['isr1'][0]: o_e_cfg['isr1'][1]] = np.linspace(o_e_cfg['val1'][0], o_e_cfg['val1'][1], num=abs(o_e_cfg['isr1'][1] - o_e_cfg['isr1'][0]))
+        # expansion_schedule[o_e_cfg['isr2'][0]: o_e_cfg['isr2'][1]] = np.linspace(o_e_cfg['val2'][0], o_e_cfg['val2'][1], num=abs(o_e_cfg['isr2'][1] - o_e_cfg['isr2'][0]))
+        # expansion_schedule[o_e_cfg['isr3'][0]: o_e_cfg['isr3'][1]] = np.linspace(o_e_cfg['val3'][0], o_e_cfg['val3'][1], num=abs(o_e_cfg['isr3'][1] - o_e_cfg['isr3'][0]))
+        
+        guide_cfgs['guidance_method'][i * batch_size_per_guide : (i+1) * batch_size_per_guide] = 1 if g_cfg['hyperparameters']['guidance_method'] == "sv" else 0
+        guide_cfgs['grad_norm'][i * batch_size_per_guide : (i+1) * batch_size_per_guide] = 1 if g_cfg['hyperparameters']['grad_norm'] else 0
 
-        guide_cfg = {
-            'index': g_index,
-            'clearance': obstacle_clearance, 
-            'expansion': expansion_schedule, 
-            'guidance_method': g_cfg['hyperparameters']['guidance_method'], 
-            'grad_norm': g_cfg['hyperparameters']['grad_norm'],
-            'volume_trust_region': g_cfg['hyperparameters']['volume_trust_region']
-        }
-        guide_cfgs.append(guide_cfg)
-   
+        guide_cfgs['guidance_schedule'][i * batch_size_per_guide : (i+1) * batch_size_per_guide, :] = (1.4 + np.arange(T) / T) if g_cfg['hyperparameters']['guidance_schedule']['type'] == 'varying' else g_cfg['hyperparameters']['guidance_schedule']['scale_val']
+        guide_cfgs['volume_trust_region'][i * batch_size_per_guide : (i+1) * batch_size_per_guide] = g_cfg['hyperparameters']['volume_trust_region']
+
 
     t_success = 0
     for scene_type in benchmark_cfg['dataset']['scene_types']:
@@ -94,53 +107,52 @@ if __name__=='__main__':
 
             start_time = time.time()
             st_time2 = time.time()
-            for guide_cfg in guide_cfgs:
-                print(f"Guide: {guide_cfg['index']}, Previous planning time: {time.time() - st_time2}") #, end = "")
-                st_time2 = time.time()
-                guide = IntersectionVolumeGuide(obstacle_config = obstacle_config, device = device, clearance = guide_cfg['clearance'], expansion = guide_cfg['expansion'], 
-                                                guidance_method=guide_cfg['guidance_method'], grad_norm=guide_cfg['grad_norm'])
-                metrics_calculator = MetricsCalculator(guide)
-                guide_set.append([guide, metrics_calculator])
 
-                # Filter final IKs
-                st3 = time.time()
-                volumes = guide.cost(torch.tensor(all_ik_goals.reshape((-1, 7, 1)), device=device), 0).sum(axis=(1, 2)).cpu().numpy()
-                # Sort joints and volumes in the increasing order of volumes
-                min_volume = np.min(volumes)
-                indices = np.argsort(volumes)#[:10]
-                rearranged_volumes = volumes[indices]
-                goal_joints = all_ik_goals[indices]
-                goal_joints = goal_joints[rearranged_volumes < min_volume + volume_trust_region]
-                ideal_ind = np.argmin(np.linalg.norm(start_joints - goal_joints, axis=1))
-
-                goal_joints = goal_joints[ideal_ind]
-                print(f"IK time: {time.time() - st3}")
-
-                st4 = time.time()
-
-                trajectories = diffuser.denoise_guided(model = denoiser,
-                                                        guide = guide,
-                                                        batch_size = g_cfg['hyperparameters']['batch_size'],
-                                                        traj_len = traj_len,
-                                                        num_channels = num_channels,
-                                                        condition = True,
-                                                        benchmarking = True,
-                                                        start = start_joints,
-                                                        goal = goal_joints,
-                                                        guidance_schedule=g_cfg['hyperparameters']['guidance_schedule']['type'],
-                                                        guidance_scale=g_cfg['hyperparameters']['guidance_schedule']['scale_val'])
-                                
-                print(f"Denoiser time: {time.time() - st4}")
-
-                trajectory = guide.choose_best_trajectory(start_joints, goal_joints, trajectories)
-                final_trajectories.append(trajectory.copy())
-                # trajectory is (7, 50) numpy array
-                end_time = time.time()
-
-            main_guide = IntersectionVolumeGuide(obstacle_config = obstacle_config, device = device, clearance = guide_cfgs[0]['clearance'], expansion = guide_cfgs[0]['expansion'], 
-                                                guidance_method=guide_cfgs[0]['guidance_method'], grad_norm=guide_cfgs[0]['grad_norm'])
+            # print(f"Guide: {guide_cfg['index']}, Previous planning time: {time.time() - st_time2}") #, end = "")
+            guide = IntersectionVolumeGuide(obstacle_config = obstacle_config, device = device, guide_cfgs = guide_cfgs, batch_size = guide_cfgs['total_batch_size'])
             
-            trajectory = main_guide.choose_best_trajectory_final(np.array(final_trajectories))
+            metrics_calculator = MetricsCalculator(guide)
+            guide_set.append([guide, metrics_calculator])
+
+            # Filter final IKs
+            st3 = time.time()
+            volumes = guide.cost(torch.tensor(all_ik_goals.reshape((-1, 7, 1)), device=device), 0, batch_size = all_ik_goals.shape[0]).sum(axis=(1, 2)).cpu().numpy()
+            # Sort joints and volumes in the increasing order of volumes
+            min_volume = np.min(volumes)
+            indices = np.argsort(volumes) #[:10]
+            rearranged_volumes = volumes[indices]
+            goal_joints = all_ik_goals[indices]
+            volume_trust_region = 0.0008        # Overriding volume trust region as it's not changing with guides
+            goal_joints = goal_joints[rearranged_volumes < min_volume + volume_trust_region]
+            ideal_ind = np.argmin(np.linalg.norm(start_joints - goal_joints, axis=1))
+
+            goal_joints = goal_joints[ideal_ind]
+            print(f"IK time: {time.time() - st3}")
+
+            st4 = time.time()
+
+            trajectories = diffuser.denoise_guided(model = denoiser,
+                                                    guide = guide,
+                                                    batch_size = total_batch_size,
+                                                    traj_len = traj_len,
+                                                    num_channels = num_channels,
+                                                    condition = True,
+                                                    benchmarking = True,
+                                                    start = start_joints,
+                                                    goal = goal_joints,
+                                                    guidance_schedule = guide_cfgs['guidance_schedule'])
+                            
+            print(f"Denoiser time: {time.time() - st4}")
+
+            trajectory = guide.choose_best_trajectory(start_joints, goal_joints, trajectories)
+            final_trajectories.append(trajectory.copy())
+            # trajectory is (7, 50) numpy array
+            end_time = time.time()
+
+            # main_guide = IntersectionVolumeGuide(obstacle_config = obstacle_config, device = device, clearance = guide_cfgs[0]['clearance'], expansion = guide_cfgs[0]['expansion'], 
+            #                                     guidance_method=guide_cfgs[0]['guidance_method'], grad_norm=guide_cfgs[0]['grad_norm'])
+            
+            # trajectory = main_guide.choose_best_trajectory_final(np.array(final_trajectories))
 
             print(f"\nPlanning Time: {time.time() - start_time} seconds\n")
 
@@ -153,7 +165,7 @@ if __name__=='__main__':
             success = env.benchmark_trajectory(trajectory)
             
             t_success += success
-            # print(f"Success: {success}")
+            print(f"Success: {success}")
 
             i+=1
 

@@ -1,5 +1,6 @@
 guide:
   guides: [16, 18, 21]
+  batch_size_per_guide: 10
   guide_path: './guides/'
 dataset:
   path: './datasets/'

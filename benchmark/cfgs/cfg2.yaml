@@ -1,5 +1,6 @@
 guide:
   guides: [4, 5, 10]
+  batch_size_per_guide: 10
   guide_path: './guides/'
 dataset:
   path: './datasets/'
@@ -9,7 +10,7 @@ dataset:
   random_scenes: False # If true, samples 'num_scenes_per_type' number of scenes randomly
   save_scene_indices: True # Saves the scene indices in their corresponding order
 model:
-  model_dir: './models/' # Directory where the model isi
+  model_dir: './models/' # Directory where the model is
   device: 'cuda:0'
   T: 255
   traj_len: 50

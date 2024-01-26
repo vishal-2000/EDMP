@@ -297,8 +297,8 @@ class Diffusion(Gaussian):
 
         return np.clip(joints, joint_lower_limits[np.newaxis, :, np.newaxis], joint_upper_limits[np.newaxis, :, np.newaxis])
     
-    def denoise_guided(self, model, guide, traj_len, num_channels, batch_size = 1, start = None, goal = None, 
-                       condition = True, benchmarking = False, guidance_schedule='constant', guidance_scale=0.05):
+    def denoise_guided(self, model, guide, traj_len, num_channels, guidance_schedule, batch_size = 1, start = None, goal = None, 
+                       condition = True, benchmarking = False):
         
         X_t = np.random.multivariate_normal(mean = np.zeros(traj_len), cov = np.eye(traj_len), size = (batch_size, num_channels))
 
@@ -312,7 +312,7 @@ class Diffusion(Gaussian):
 
         # full_info = np.zeros((self.T+1, batch_size, 7, 50))
         for t in range(self.T, 0, -1):
-            print(f"\rDenoising: {t}", end="")
+            print(f"\rDenoising: " + str(t) + " ", end="")
 
             # full_info[t, :, : ,:] = X_t.copy()  # copy.deepcopy(X_t)
 
@@ -329,14 +329,16 @@ class Diffusion(Gaussian):
                     # st = time.time()
                     gradient = guide.get_gradient(clipped_joints, start[:], goal[:], t)
                     # print(f"\nGradient time: {time.time() - st}")
-                    if guidance_schedule == 'constant':
-                        X_t[:, :, 1:-1] = X_t[:, :, 1:-1] - guidance_scale * gradient
-                    elif guidance_schedule == 'varying':
-                        X_t[:, :, 1:-1] = X_t[:, :, 1:-1] - (1.4 + (t/self.T)) * gradient
-                    else:
-                        raise NotImplementedError("This type of guidance schedule is not implemented!!")
                     
-                    # X_t[:, :, 1:-1] = X_t[:, :, 1:-1] - 1.4 * gradient
+                    # if guidance_schedule == 'constant':
+                    #     X_t[:, :, 1:-1] = X_t[:, :, 1:-1] - guidance_scale * gradient
+                    # elif guidance_schedule == 'varying':
+                    #     # Remember to index t-1 while parallelizing
+                    #     X_t[:, :, 1:-1] = X_t[:, :, 1:-1] - (1.4 + (t/self.T)) * gradient
+                    # else:
+                    #     raise NotImplementedError("This type of guidance schedule is not implemented!!")
+                    
+                    X_t[:, :, 1:-1] = X_t[:, :, 1:-1] - guidance_schedule[:, t-1, np.newaxis, np.newaxis] * gradient
 
                 # weight = np.clip(np.log(1+((t-2)/self.T)*(np.exp(1) - 1)), 0.005, 1) * 2.2
                 # X_t[:, :, 1:-1] = X_t[:, :, 1:-1] - weight * gradient

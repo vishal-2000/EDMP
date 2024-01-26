@@ -10,7 +10,7 @@ import pybullet_data
 
 class IntersectionVolumeGuide:
 
-    def __init__(self, obstacle_config, device, clearance, expansion, guidance_method='sv', grad_norm=True):
+    def __init__(self, obstacle_config, device, guide_cfgs, batch_size):
         '''
         Parameters:
 
@@ -20,13 +20,11 @@ class IntersectionVolumeGuide:
 
         # self.env = env
         self.device = device
-        self.clearance = clearance
-        self.expansion = expansion
-        self.guidance_method = guidance_method
-        self.grad_norm = grad_norm
+        self.guide_cfgs = guide_cfgs
         
         self.obstacle_config = np.array(obstacle_config)
         self.obs_ids = []
+        self.batch_size = batch_size
 
         self.static_dh_params = torch.tensor([[0, 0.333, 0, 0],
                                   [0, 0, -torch.pi / 2, 0],
@@ -117,72 +115,130 @@ class IntersectionVolumeGuide:
 
         return T        
 
-    def define_obstacles(self, obstacle_config, t):
+    def define_obstacles(self, obstacle_config, t, batch_size = None):
 
         # Obstacle Config => (n, 10)
         
-        obstacle_sizes = np.array(obstacle_config[:, 7:])
-        obstacle_sizes = np.maximum(obstacle_sizes, self.expansion[t])
+        # Hyperparameters used here are clearance and expansion, both defined in the init function.
+        if batch_size != None:
+            b = batch_size
+        else:
+            b = self.batch_size
+        obstacle_sizes = np.array(obstacle_config[np.newaxis, :, 7:])
+        obstacle_sizes = np.repeat(obstacle_sizes, b, axis = 0)
+        # Now obstacle_sizes is (total_batch_size, n0, 3)
 
         if t != 0:
-            obstacle_sizes = torch.tensor(obstacle_sizes, dtype = torch.float32, device = self.device) + self.clearance[t]
-        else:
-            obstacle_sizes = torch.tensor(obstacle_sizes, dtype = torch.float32, device = self.device)
+            # Expansion (total_batch_size, T):    
+            obstacle_sizes = np.maximum(obstacle_sizes, self.guide_cfgs['expansion'][:, t-1, np.newaxis, np.newaxis])
+
+            # Clearance (total_batch_size, T):
+            obstacle_sizes = obstacle_sizes + self.guide_cfgs['clearance'][:, t-1, np.newaxis, np.newaxis]    # It's t-1 because the size of clearance is 255, so last index is 254
         
-        obstacle_static_vertices = self.get_vertices(obstacle_sizes)
-        # obstacle_static_vertices => (n, 4, 8)
+        obstacle_static_vertices = self.get_obstacle_vertices(obstacle_sizes)
+        # obstacle_static_vertices => (total_batch_size, no, 4, 8)
 
         obstacle_transform = np.zeros((obstacle_config.shape[0], 4, 4))
         for i in range(obstacle_config.shape[0]):
             obstacle_transform[i, :3, :3] = R.from_quat(obstacle_config[i, 3:7]).as_matrix() #).reshape((3, 3))
             obstacle_transform[i, :3, -1] = obstacle_config[i, :3]
         obstacle_transform[:, -1, -1] = 1.
-        # obstacle_transform => (n, 4, 4)
+        # obstacle_transform => (no, 4, 4)
+        obstacle_transform = obstacle_transform[np.newaxis, :]
+        obstacle_transform = np.repeat(obstacle_transform, b, axis = 0)
+        # Now obstacle_transform is (total_batch_size, n0, 4, 4)
 
         obstacle_transform = torch.tensor(obstacle_transform, dtype = torch.float32, device = self.device)
-        obstacle_vertices = torch.bmm(obstacle_transform, obstacle_static_vertices)
-        # obstacle_vertices => (n, 4, 8)
+        obstacle_vertices = torch.matmul(obstacle_transform, obstacle_static_vertices)
+        # obstacle_vertices => (total_batch_size, n0, 4, 8)
 
-        self.obs_min = torch.min(obstacle_vertices, dim = -1)[0][:, :-1]
-        self.obs_max = torch.max(obstacle_vertices, dim = -1)[0][:, :-1]
-        # obs_min => (n, 3)
-        # obs_max => (n, 3)
+        self.obs_min = torch.min(obstacle_vertices, dim = -1)[0][:, :, :-1]
+        self.obs_max = torch.max(obstacle_vertices, dim = -1)[0][:, :, :-1]
+        # obs_min => (total_batch_size, n0, 3)
+        # obs_max => (total_batch_size, n0, 3)
     
-    def get_vertices(self, dimensions):
+    def get_obstacle_vertices(self, dimensions):
 
-        l, b, h = dimensions[:, 0], dimensions[:, 1], dimensions[:, 2]
-        obstacle_vertices = torch.zeros(size = (dimensions.shape[0], 4, 8), dtype = torch.float32, device = self.device)
-
-        obstacle_vertices[:, 0, 0] = -l/2
-        obstacle_vertices[:, 0, 1] = l/2
-        obstacle_vertices[:, 0, 2] = l/2
-        obstacle_vertices[:, 0, 3] = -l/2
-        obstacle_vertices[:, 0, 4] = -l/2
-        obstacle_vertices[:, 0, 5] = l/2
-        obstacle_vertices[:, 0, 6] = l/2
-        obstacle_vertices[:, 0, 7] = -l/2
-
-        obstacle_vertices[:, 1, 0] = -b/2
-        obstacle_vertices[:, 1, 1] = -b/2
-        obstacle_vertices[:, 1, 2] = b/2
-        obstacle_vertices[:, 1, 3] = b/2
-        obstacle_vertices[:, 1, 4] = -b/2
-        obstacle_vertices[:, 1, 5] = -b/2
-        obstacle_vertices[:, 1, 6] = b/2
-        obstacle_vertices[:, 1, 7] = b/2
-
-        obstacle_vertices[:, 2, 0] = -h/2
-        obstacle_vertices[:, 2, 1] = -h/2
-        obstacle_vertices[:, 2, 2] = -h/2
-        obstacle_vertices[:, 2, 3] = -h/2
-        obstacle_vertices[:, 2, 4] = h/2
-        obstacle_vertices[:, 2, 5] = h/2
-        obstacle_vertices[:, 2, 6] = h/2
-        obstacle_vertices[:, 2, 7] = h/2
-
-        obstacle_vertices[:, 3, :] = 1.
+        # dimensions -> (total_batch_size, no, 3)
         
+        l, b, h = dimensions[:, :, 0], dimensions[:, :, 1], dimensions[:, :, 2]
+        l = torch.tensor(l, dtype = torch.float32, device = self.device)
+        b = torch.tensor(b, dtype = torch.float32, device = self.device)
+        h = torch.tensor(h, dtype = torch.float32, device = self.device)
+        obstacle_vertices = torch.zeros(size = (dimensions.shape[0], dimensions.shape[1], 4, 8), dtype = torch.float32, device = self.device)
+
+        obstacle_vertices[:, :, 0, 0] = -l/2
+        obstacle_vertices[:, :, 0, 1] = l/2
+        obstacle_vertices[:, :, 0, 2] = l/2
+        obstacle_vertices[:, :, 0, 3] = -l/2
+        obstacle_vertices[:, :, 0, 4] = -l/2
+        obstacle_vertices[:, :, 0, 5] = l/2
+        obstacle_vertices[:, :, 0, 6] = l/2
+        obstacle_vertices[:, :, 0, 7] = -l/2
+
+        obstacle_vertices[:, :, 1, 0] = -b/2
+        obstacle_vertices[:, :, 1, 1] = -b/2
+        obstacle_vertices[:, :, 1, 2] = b/2
+        obstacle_vertices[:, :, 1, 3] = b/2
+        obstacle_vertices[:, :, 1, 4] = -b/2
+        obstacle_vertices[:, :, 1, 5] = -b/2
+        obstacle_vertices[:, :, 1, 6] = b/2
+        obstacle_vertices[:, :, 1, 7] = b/2
+
+        obstacle_vertices[:, :, 2, 0] = -h/2
+        obstacle_vertices[:, :, 2, 1] = -h/2
+        obstacle_vertices[:, :, 2, 2] = -h/2
+        obstacle_vertices[:, :, 2, 3] = -h/2
+        obstacle_vertices[:, :, 2, 4] = h/2
+        obstacle_vertices[:, :, 2, 5] = h/2
+        obstacle_vertices[:, :, 2, 6] = h/2
+        obstacle_vertices[:, :, 2, 7] = h/2
+
+        obstacle_vertices[:, :, 3, :] = 1.
+        
+        # obstacle_vertices -> (total_batch_size, no, 4, 8)
+
         return obstacle_vertices
+    
+    def get_link_vertices(self, dimensions):
+
+        # dimensions -> (nl, 3)
+        
+        l, b, h = dimensions[:, 0], dimensions[:, 1], dimensions[:, 2]
+        link_vertices = torch.zeros(size = (dimensions.shape[0], 4, 8), dtype = torch.float32, device = self.device)
+
+        link_vertices[:, 0, 0] = -l/2
+        link_vertices[:, 0, 1] = l/2
+        link_vertices[:, 0, 2] = l/2
+        link_vertices[:, 0, 3] = -l/2
+        link_vertices[:, 0, 4] = -l/2
+        link_vertices[:, 0, 5] = l/2
+        link_vertices[:, 0, 6] = l/2
+        link_vertices[:, 0, 7] = -l/2
+
+        link_vertices[:, 1, 0] = -b/2
+        link_vertices[:, 1, 1] = -b/2
+        link_vertices[:, 1, 2] = b/2
+        link_vertices[:, 1, 3] = b/2
+        link_vertices[:, 1, 4] = -b/2
+        link_vertices[:, 1, 5] = -b/2
+        link_vertices[:, 1, 6] = b/2
+        link_vertices[:, 1, 7] = b/2
+
+        link_vertices[:, 2, 0] = -h/2
+        link_vertices[:, 2, 1] = -h/2
+        link_vertices[:, 2, 2] = -h/2
+        link_vertices[:, 2, 3] = -h/2
+        link_vertices[:, 2, 4] = h/2
+        link_vertices[:, 2, 5] = h/2
+        link_vertices[:, 2, 6] = h/2
+        link_vertices[:, 2, 7] = h/2
+
+        link_vertices[:, 3, :] = 1.
+        
+        # link_vertices -> (nl, 4, 8)
+
+        return link_vertices
     
     def define_link_information(self):
 
@@ -225,7 +281,7 @@ class IntersectionVolumeGuide:
             self.link_dimensions.append(link_dimensions)
         self.link_dimensions = torch.tensor(np.array(self.link_dimensions), dtype = torch.float32, device = self.device)
 
-        self.link_vertices = self.get_vertices(self.link_dimensions)
+        self.link_vertices = self.get_link_vertices(self.link_dimensions)
 
         self.link_static_joint_frame = [1, 2, 3, 4, 5, 6, 7, 7, 7] 
         self.static_frames = []
@@ -295,13 +351,10 @@ class IntersectionVolumeGuide:
 
         return link_transform
     
-    def cost(self, joint_input, t):
+    def cost(self, joint_input, t, batch_size = None):
 
-        # joint_angles => (b, 7, n)
-        # obs_min => (n, 3)
-        # obs_max => (n, 3) 
-        self.define_obstacles(self.obstacle_config, t)
-
+        self.define_obstacles(self.obstacle_config, t, batch_size = batch_size)
+        
         joints = self.rearrange_joints(joint_input)
         # Now joints is (batch, traj_len, 7)
         
@@ -310,7 +363,7 @@ class IntersectionVolumeGuide:
         b = link_transform.shape[0]
         n = link_transform.shape[1]
         nl = link_transform.shape[2]
-        no = self.obs_min.shape[0]
+        no = self.obs_min.shape[1]
 
         # link_transform => (batch, traj_len, 9, 4, 4)
         # self.link_vertices => (9, 4, 8)
@@ -326,8 +379,10 @@ class IntersectionVolumeGuide:
         expanded_link_min = link_min.unsqueeze(-2).repeat(1, 1, 1, no, 1).view(b, n, no*nl, 3)
         expanded_link_max = link_max.unsqueeze(-2).repeat(1, 1, 1, no, 1).view(b, n, no*nl, 3)
 
-        expanded_obs_min = self.obs_min.unsqueeze(0).unsqueeze(0).unsqueeze(0).repeat(b, n, nl, 1, 1).view(b, n, no*nl, 3)
-        expanded_obs_max = self.obs_max.unsqueeze(0).unsqueeze(0).unsqueeze(0).repeat(b, n, nl, 1, 1).view(b, n, no*nl, 3)
+        # obs_min => (total_batch_size, n0, 3)
+        # obs_max => (total_batch_size, n0, 3)
+        expanded_obs_min = self.obs_min.unsqueeze(1).unsqueeze(1).repeat(1, n, nl, 1, 1).view(b, n, no*nl, 3)
+        expanded_obs_max = self.obs_max.unsqueeze(1).unsqueeze(1).repeat(1, n, nl, 1, 1).view(b, n, no*nl, 3)
 
         overlap_min = torch.max(expanded_link_min, expanded_obs_min)
         overlap_max = torch.min(expanded_link_max, expanded_obs_max)
@@ -335,6 +390,7 @@ class IntersectionVolumeGuide:
         overlap_lengths = overlap_max - overlap_min
 
         volumes = torch.prod(torch.clamp(overlap_lengths, min = 0), dim = -1)
+        # volumes => (b, n, no*nl)
 
         return volumes
     
@@ -414,19 +470,25 @@ class IntersectionVolumeGuide:
 
         return (volumes1 + volumes2 + volumes3)
     
-    def swept_volume_cost(self, joint_input, start, goal, t):
+    def swept_volume_cost(self, joint_input, start, goal, t, batch_size = None):
 
         # joint_angles => (b, 7, n)
         # obs_min => (n, 3)
         # obs_max => (n, 3) 
-        self.define_obstacles(self.obstacle_config, t)
 
+        self.define_obstacles(self.obstacle_config, t, batch_size = batch_size)
+        
         joints = self.rearrange_joints(joint_input)
         # Now joints is (batch, traj_len, 7)
 
         joint_trajectory = torch.zeros(size = (joints.shape[0], joints.shape[1] + 2, joints.shape[2]))
+
         joint_trajectory[:, 0, :] = start.unsqueeze(0).repeat(joints.shape[0], 1)
-        joint_trajectory[:, -1, :] = goal.unsqueeze(0).repeat(joints.shape[0], 1)
+        if list(goal.size()) != [joint_trajectory.shape[0], joint_trajectory.shape[-1]]:
+            joint_trajectory[:, -1, :] = goal.unsqueeze(0).repeat(joints.shape[0], 1)
+        else:
+            joint_trajectory[:, -1, :] = goal
+
         joint_trajectory[:, 1:-1, :] = joints
         # Now joint_trajectory is (batch, traj_len + 2, 7)
         
@@ -435,7 +497,7 @@ class IntersectionVolumeGuide:
         b = link_transform.shape[0]
         n = link_transform.shape[1]
         nl = link_transform.shape[2]
-        no = self.obs_min.shape[0]
+        no = self.obs_min.shape[1]
 
         # link_transform => (batch, traj_len+2, 9, 4, 4)
         # self.link_vertices => (9, 4, 8)
@@ -460,8 +522,10 @@ class IntersectionVolumeGuide:
         expanded_link_min = swept_volumes_min.unsqueeze(-2).repeat(1, 1, 1, no, 1).view(b, n-1, no*nl, 3)
         expanded_link_max = swept_volumes_max.unsqueeze(-2).repeat(1, 1, 1, no, 1).view(b, n-1, no*nl, 3)
 
-        expanded_obs_min = self.obs_min.unsqueeze(0).unsqueeze(0).unsqueeze(0).repeat(b, n-1, nl, 1, 1).view(b, n-1, no*nl, 3)
-        expanded_obs_max = self.obs_max.unsqueeze(0).unsqueeze(0).unsqueeze(0).repeat(b, n-1, nl, 1, 1).view(b, n-1, no*nl, 3)
+        # obs_min => (total_batch_size, n0, 3)
+        # obs_max => (total_batch_size, n0, 3)
+        expanded_obs_min = self.obs_min.unsqueeze(1).unsqueeze(1).repeat(1, n-1, nl, 1, 1).view(b, n-1, no*nl, 3)
+        expanded_obs_max = self.obs_max.unsqueeze(1).unsqueeze(1).repeat(1, n-1, nl, 1, 1).view(b, n-1, no*nl, 3)
 
         overlap_min = torch.max(expanded_link_min, expanded_obs_min)
         overlap_max = torch.min(expanded_link_max, expanded_obs_max)
@@ -541,25 +605,32 @@ class IntersectionVolumeGuide:
         # start => (7,)
         # goal => (7,)
 
-        # DIFFERENT COSTS:
-        # cost = torch.sum(self.cost(joint_tensor1, t)) # Intersection Volume
-        # cost = torch.sum(self.swept_volume_cost(joint_tensor1, start, goal, t)) # Swept Volume
-        # cost = torch.sum(self.cost(joint_tensor1, t)) + torch.sum(self.interpolation_cost(joint_tensor1, start, goal, t)) # Interpolation Volume
-
-        if self.guidance_method =='iv':
-            cost = torch.sum(self.cost(joint_tensor1, t)) # Intersection Volume
-        elif self.guidance_method == 'sv':
-            cost = torch.sum(self.swept_volume_cost(joint_tensor1, start, goal, t)) # Swept Volume
-        elif self.guidance_method == 'ipv':
-            cost = torch.sum(self.cost(joint_tensor1, t)) + torch.sum(self.interpolation_cost(joint_tensor1, start, goal, t)) # Interpolation Volume
+        # Uses guidance_method type hyperparameter (total_batch_size,)
+        # volumes => (b, n, no*nl)
+        b = self.batch_size
+        guidance_method = torch.tensor(self.guide_cfgs['guidance_method'], dtype = torch.float32, device = self.device).view(b, 1, 1)
+        cost = torch.sum((1 - guidance_method) * self.cost(joint_tensor1, t)) + torch.sum(guidance_method * self.swept_volume_cost(joint_tensor1, start, goal, t))
+        
+        # if self.guidance_method =='iv':
+        #     cost = torch.sum(self.cost(joint_tensor1, t)) # Intersection Volume
+        # elif self.guidance_method == 'sv':
+        #     cost = torch.sum(self.swept_volume_cost(joint_tensor1, start, goal, t)) # Swept Volume
+        # elif self.guidance_method == 'ipv':
+        #     cost = torch.sum(self.cost(joint_tensor1, t)) + torch.sum(self.interpolation_cost(joint_tensor1, start, goal, t)) # Interpolation Volume
         
         cost.backward()
 
         gradient1 = joint_tensor1.grad.cpu().numpy()
+        # gradient1 -> (b, 7, n)
 
-        if self.grad_norm == True:
-            if np.linalg.norm(gradient1) > 0:    
-                gradient1 = gradient1 / np.linalg.norm(gradient1)
+        # Uses grad_norm hyperparameter:
+        grad_norm = self.guide_cfgs['grad_norm'][:, np.newaxis, np.newaxis]
+        # grad_norm -> (b,)
+        gradient1 = (1 - grad_norm) * gradient1 + grad_norm * (gradient1 / np.linalg.norm(gradient1))
+
+        # if self.grad_norm == True:
+        #     if np.linalg.norm(gradient1) > 0:    
+        #         gradient1 = gradient1 / np.linalg.norm(gradient1)
 
         return gradient1
     
@@ -569,6 +640,9 @@ class IntersectionVolumeGuide:
         
         start = torch.tensor(start, dtype = torch.float32, device = self.device)
         goal = torch.tensor(goal, dtype = torch.float32, device = self.device)
+        
+        # joint_angles => (b, 7, n)
+        self.define_obstacles(self.obstacle_config, 0)    # Uses clearance and expansion hyperparameters
         
         overlap_volumes = torch.sum(self.swept_volume_cost(joint_tensor, start, goal, 0), dim = (1, 2))
         min_index = torch.argmin(overlap_volumes)

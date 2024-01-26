@@ -9,3 +9,5 @@ mpinets/__pycache__/*
 diffusion/__pycache__/*
 lib/__pycache__/*
 mpinets/__pycache__/*
+*.cpython-310.pyc
+*.zip
