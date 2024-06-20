@@ -138,7 +138,7 @@ If you find our work useful in your research, please cite:
 
 ## Contact
 
-Kallol Saha: kallolsaha1752001@gmail.com <br>
+Kallol Saha: ksaha@andrew.cmu.edu <br>
 Vishal Mandadi: vishal.mandadi@students.iiit.ac.in <br>
 Jayaram Reddy: jayaram.reddy@research.iiit.ac.in <br>
 
