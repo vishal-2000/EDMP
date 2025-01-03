@@ -139,6 +139,6 @@ If you find our work useful in your research, please cite:
 ## Contact
 
 Kallol Saha: ksaha@andrew.cmu.edu <br>
-Vishal Mandadi: vishal.mandadi@students.iiit.ac.in <br>
+Vishal Mandadi: vishal.mandadi@alumni.iiit.ac.in <br>
 Jayaram Reddy: jayaram.reddy@research.iiit.ac.in <br>
 
