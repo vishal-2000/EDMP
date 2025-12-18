@@ -22,7 +22,10 @@ hyperparameters:
     type: 'constant' # 'constant' or 'varying' (1.4 + (t/self.T))
     scale_val: 0.05
 '''
-from autolab_core import YamlConfig
+import yaml
+def YamlConfig(path):
+    with open(path, 'r') as f:
+        return yaml.safe_load(f)
 
 class Guide:
     def __init__(self, path_to_yaml='./guides/cfgs/guide1.yaml') -> None:

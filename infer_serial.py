@@ -4,7 +4,10 @@ from datasets.load_test_dataset import TestDataset
 
 import argparse
 
-from autolab_core import YamlConfig
+import yaml
+def YamlConfig(path):
+    with open(path, 'r') as f:
+        return yaml.safe_load(f)
 
 import os
 import wandb
