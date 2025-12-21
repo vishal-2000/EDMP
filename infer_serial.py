@@ -11,6 +11,7 @@ def YamlConfig(path):
 
 import os
 import wandb
+import pickle
 
 import time
 
@@ -30,6 +31,10 @@ if __name__=='__main__':
     # Load guide params
     guides = benchmark_cfg['guide']['guides'] # list
     guide_dpath = benchmark_cfg['guide']['guide_path'] 
+    
+    save_dir = benchmark_cfg['general']['save_dir']
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir) 
 
     # Load model params
     device = benchmark_cfg['model']['device'] if torch.cuda.is_available() else 'cpu'
@@ -169,6 +174,25 @@ if __name__=='__main__':
             
             t_success += success
             print(f"Success: {success}")
+
+            # Save results
+            result_data = {
+                'trajectory': trajectory,
+                'obstacle_config': obstacle_config,
+                'cuboid_config': cuboid_config,
+                'cylinder_config': cylinder_config,
+                'start_joints': start_joints,
+                'goal_joints': goal_joints,
+                'success': success,
+                'scene_type': scene_type,
+                'scene_num': scene_num,
+                'guide_index': guides[i] if i < len(guides) else -1 # Store guide info if relevant
+            }
+            
+            save_path = os.path.join(save_dir, f'{scene_type}_scene_{scene_num}.pkl')
+            with open(save_path, 'wb') as f:
+                pickle.dump(result_data, f)
+            print(f"Saved result to {save_path}")
 
             i+=1
 
