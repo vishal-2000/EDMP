@@ -139,7 +139,7 @@ if __name__=='__main__':
 
             st4 = time.time()
 
-            trajectories = diffuser.denoise_guided(model = denoiser,
+            trajectories, intermediates = diffuser.denoise_guided(model = denoiser,
                                                     guide = guide,
                                                     batch_size = total_batch_size,
                                                     traj_len = traj_len,
@@ -148,7 +148,8 @@ if __name__=='__main__':
                                                     benchmarking = True,
                                                     start = start_joints,
                                                     goal = goal_joints,
-                                                    guidance_schedule = guide_cfgs['guidance_schedule'])
+                                                    guidance_schedule = guide_cfgs['guidance_schedule'],
+                                                    capture_intermediates=True)
                             
             print(f"Denoiser time: {time.time() - st4}")
 
@@ -186,7 +187,8 @@ if __name__=='__main__':
                 'success': success,
                 'scene_type': scene_type,
                 'scene_num': scene_num,
-                'guide_index': guides[i] if i < len(guides) else -1 # Store guide info if relevant
+                'guide_index': guides[i] if i < len(guides) else -1, # Store guide info if relevant
+                'intermediate_trajectories': intermediates
             }
             
             save_path = os.path.join(save_dir, f'{scene_type}_scene_{scene_num}.pkl')

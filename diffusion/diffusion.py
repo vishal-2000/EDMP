@@ -298,7 +298,7 @@ class Diffusion(Gaussian):
         return np.clip(joints, joint_lower_limits[np.newaxis, :, np.newaxis], joint_upper_limits[np.newaxis, :, np.newaxis])
     
     def denoise_guided(self, model, guide, traj_len, num_channels, guidance_schedule, batch_size = 1, start = None, goal = None, 
-                       condition = True, benchmarking = False):
+                       condition = True, benchmarking = False, capture_intermediates = False):
         
         X_t = np.random.multivariate_normal(mean = np.zeros(traj_len), cov = np.eye(traj_len), size = (batch_size, num_channels))
 
@@ -309,6 +309,8 @@ class Diffusion(Gaussian):
         model.train(False) 
 
         period = 2
+        
+        intermediates = {} # Store intermediate steps: {step: {'raw': ..., 'guided': ...}}
 
         # full_info = np.zeros((self.T+1, batch_size, 7, 50))
         for t in range(self.T, 0, -1):
@@ -322,6 +324,13 @@ class Diffusion(Gaussian):
             epsilon = model(X_input, time_in).numpy(force=True)
 
             X_t = self.p_sample_using_posterior(X_t, t, epsilon)
+            
+            # Capture condition: Every 5 steps
+            should_capture = (t % 5 == 0)
+            
+            raw_state = None
+            if capture_intermediates and should_capture:
+                 raw_state = X_t.copy()
 
             if (t%period) < (period/2):
                 if t >= 5:
@@ -344,6 +353,12 @@ class Diffusion(Gaussian):
                 # X_t[:, :, 1:-1] = X_t[:, :, 1:-1] - weight * gradient
                 # X_t[:, :, 1:-1] = X_t[:, :, 1:-1] - 2. * gradient
 
+            if capture_intermediates and should_capture:
+                intermediates[t] = {
+                    'raw': raw_state,
+                    'guided': X_t.copy()
+                }
+
             if condition:
                 X_t[:, :, 0] = start[:]
                 X_t[:, :, -1] = goal[:]
@@ -353,6 +368,8 @@ class Diffusion(Gaussian):
 
         # full_info[0, :, :, :] = X_t.copy()
 
+        if capture_intermediates:
+             return X_t.copy(), intermediates
         return X_t.copy() #, full_info.copy()
         
     

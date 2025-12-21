@@ -6,7 +6,8 @@ import time
 import os
 from lib.environment import RobotEnvironment
 
-def replay_trajectory(file_path, speed=0.05, cam_dist=1.5, cam_yaw=90, cam_pitch=-25, cam_target=[0, 0, 0]):
+def replay_trajectory(file_path, speed=0.05, cam_dist=1.5, cam_yaw=90, cam_pitch=-25, cam_target=[0, 0, 0], 
+                      waypoint_step=5, stage_duration=1.0, show_raw=False):
     if not os.path.exists(file_path):
         print(f"Error: File {file_path} not found.")
         return
@@ -96,6 +97,63 @@ def replay_trajectory(file_path, speed=0.05, cam_dist=1.5, cam_yaw=90, cam_pitch
     for i in range(len(traj_points) - 1):
         env.client_id.addUserDebugLine(traj_points[i], traj_points[i+1], lineColorRGB=col_blue, lineWidth=3.0)
     
+    # --- Intermediates Visualization Start ---
+    if 'intermediate_trajectories' in data:
+        print("Visualizing intermediate noisy trajectories...")
+        intermediates = data['intermediate_trajectories']
+        # Sort timesteps in descending order (T -> 0)
+        timesteps = sorted(intermediates.keys(), reverse=True)
+        
+        current_bodies = []
+        current_debug_items = []
+        
+        for t_step in timesteps:
+            step_data = intermediates[t_step]
+            stages = []
+            if show_raw:
+                stages.append(('Raw', step_data['raw']))
+            stages.append(('Guided', step_data['guided']))
+            
+            for stage_name, traj_data in stages:
+                if traj_data is None: continue
+                
+                # Cleanup previous
+                for b_id in current_bodies:
+                    env.client_id.removeBody(b_id)
+                current_bodies = []
+                for d_id in current_debug_items:
+                    env.client_id.removeUserDebugItem(d_id)
+                current_debug_items = []
+                
+                # Text
+                # Repositioning text to be more visible (centered and slightly lower)
+                text_position = [0, 0, 1.0] 
+                text_id = env.client_id.addUserDebugText(f"Stage: Step {t_step} - {stage_name}", text_position, [0, 0, 0], textSize=1.2)
+                current_debug_items.append(text_id)
+                
+                current_traj = traj_data[0] if traj_data.ndim == 3 else traj_data
+                # Waypoints to show: Every Nth
+                waypoints_indices = range(0, current_traj.shape[1], waypoint_step)
+                
+                for wp_idx in waypoints_indices:
+                    if wp_idx >= current_traj.shape[1]: continue
+                    joints = current_traj[:, wp_idx]
+                    pos = env.forward_kinematics(joints)[:3, 3]
+                    
+                    vis_id = env.client_id.createVisualShape(shapeType=env.client_id.GEOM_SPHERE, radius=0.015, rgbaColor=[1, 0.5, 0, 0.6])
+                    body_id = env.client_id.createMultiBody(baseVisualShapeIndex=vis_id, basePosition=pos)
+                    current_bodies.append(body_id)
+                
+                time.sleep(stage_duration) 
+                
+        # Final Cleanup
+        for b_id in current_bodies:
+            env.client_id.removeBody(b_id)
+        for d_id in current_debug_items:
+            env.client_id.removeUserDebugItem(d_id)
+            
+    # --- Intermediates Visualization End ---
+
     # --- Visualization End ---
 
     input("Press Enter to start replay...")
@@ -104,9 +162,14 @@ def replay_trajectory(file_path, speed=0.05, cam_dist=1.5, cam_yaw=90, cam_pitch
     # trajectory shape is expected to be (7, T)
     T = trajectory.shape[1]
     
+    print("Replaying final trajectory...")
     for t in range(T):
         target_joints = trajectory[:, t]
-        env.move_joints(target_joints)
+        
+        # Use resetJointState for kinematic replay instead of move_joints (controller)
+        for i, joint_ind in enumerate(env.joints):
+             env.client_id.resetJointState(env.manipulator, joint_ind, target_joints[i])
+        
         env.client_id.stepSimulation()
         time.sleep(speed)
     
@@ -116,8 +179,16 @@ def replay_trajectory(file_path, speed=0.05, cam_dist=1.5, cam_yaw=90, cam_pitch
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Replay saved trajectories from EDMP inference.")
     parser.add_argument('-f', '--file', type=str, required=True, help="Path to the .pkl file containing trajectory data.")
-    parser.add_argument('-s', '--speed', type=float, default=0.05, help="Time delay between steps (seconds). Default 0.05")
+    parser.add_argument('-s', '--speed', type=float, default=0.05, help="Time delay between steps for final trajectory (seconds). Default 0.05")
+    
+    # Visualization arguments
+    parser.add_argument('--wp-step', type=int, default=5, help="Step size for displaying waypoints. Default 5.")
+    parser.add_argument('--stage-time', type=float, default=1.0, help="Duration to limit each visualization stage (seconds). Default 1.0.")
+    parser.add_argument('--hide-raw', action='store_true', help="If set, hides the 'Raw' trajectory visualization and only shows 'Guided'.")
 
     args = parser.parse_args()
 
-    replay_trajectory(args.file, args.speed)
+    replay_trajectory(args.file, args.speed, 
+                      waypoint_step=args.wp_step, 
+                      stage_duration=args.stage_time,
+                      show_raw=not args.hide_raw)
