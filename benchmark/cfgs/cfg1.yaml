@@ -16,7 +16,7 @@ model:
   traj_len: 50
   num_channels: 7
 general:
-  gui: True # Set as false when running on servers
+  gui: False # Set as false when running on servers
   save_dir: './results/' # Directory to save the scenes
   wandb:
     enable_wandb: True
