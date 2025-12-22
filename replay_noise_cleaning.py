@@ -3,10 +3,11 @@ import numpy as np
 import argparse
 import time
 import os
+import cv2
 from lib.environment import RobotEnvironment
 
 def replay_evolution(file_path, speed=0.05, cam_dist=1.5, cam_yaw=90, cam_pitch=-25, cam_target=[0, 0, 0], 
-                      stage_duration=1.0):
+                      stage_duration=1.0, save_video=None):
     if not os.path.exists(file_path):
         print(f"Error: File {file_path} not found.")
         return
@@ -17,6 +18,7 @@ def replay_evolution(file_path, speed=0.05, cam_dist=1.5, cam_yaw=90, cam_pitch=
     print(f"Loaded trajectory data from {file_path}")
 
     # Initialize Environment
+    # GUI must be true to capture images from OpenGL renderer
     env = RobotEnvironment(gui=True, manipulator=True, benchmarking=False)
     
     # Set Camera
@@ -37,7 +39,7 @@ def replay_evolution(file_path, speed=0.05, cam_dist=1.5, cam_yaw=90, cam_pitch=
 
     if cuboid_config is not None and len(cuboid_config) > 0:
         env.spawn_collision_cuboids(cuboid_config)
-
+    
     if cylinder_config is not None and len(cylinder_config) > 0:
         env.spawn_collision_cylinders(cylinder_config)
 
@@ -93,6 +95,22 @@ def replay_evolution(file_path, speed=0.05, cam_dist=1.5, cam_yaw=90, cam_pitch=
     print("Starting Raw vs Guided evolution replay...")
 
     waypoint_stride = 5 # Hardcoded default for visual clarity
+    
+    # Video Recording Setup
+    video_writer = None
+    total_frames_written = 0
+    if save_video:
+        print(f"Recording video to {save_video}")
+        # Get dimensions from camera
+        width, height = 1920, 1080 
+        
+        # Use 'mp4v' which is generally more compatible on Windows without extra DLLs
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        video_writer = cv2.VideoWriter(save_video, fourcc, 30.0, (width, height))
+             
+        if not video_writer.isOpened():
+            print("Error: Could not open video writer.")
+            return
 
     for t in valid_steps:
         step_data = intermediates[t]
@@ -152,7 +170,31 @@ def replay_evolution(file_path, speed=0.05, cam_dist=1.5, cam_yaw=90, cam_pitch=
             body_id = env.client_id.createMultiBody(baseVisualShapeIndex=vis_id, basePosition=pos)
             current_bodies.append(body_id)
 
-        time.sleep(stage_duration)
+        # Handle Display / Recording
+        if save_video:
+            fps = 30.0
+            num_frames = int(stage_duration * fps)
+            width, height = 1920, 1080
+            
+            # Use stepSimulation to ensure scene integrity during capture if needed, 
+            # but usually getCameraImage is immediate.
+            
+            print(f"Capturing {num_frames} frames for step {t}...")
+            
+            for _ in range(num_frames):
+                img_arr = env.client_id.getCameraImage(width=width, height=height, renderer=env.client_id.ER_BULLET_HARDWARE_OPENGL)[2]
+                # img_arr is (height, width, 4) RGBA uint8
+                img_data = np.reshape(img_arr, (height, width, 4))
+                # Convert RGBA to BGR for OpenCV
+                img_bgr = cv2.cvtColor(img_data, cv2.COLOR_RGBA2BGR)
+                video_writer.write(img_bgr)
+                total_frames_written += 1
+        else:
+            time.sleep(stage_duration)
+
+    if video_writer:
+        video_writer.release()
+        print(f"Video saved to {save_video}. Total frames: {total_frames_written} ({total_frames_written/30.0:.2f}s)")
 
     print("Replay finished.")
     input("Press Enter to exit...")
@@ -161,7 +203,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Visualize Raw vs Guided evolution (Steps 250->25).")
     parser.add_argument('-f', '--file', type=str, required=True, help="Path to the .pkl file.")
     parser.add_argument('--time', type=float, default=1.0, help="Duration for each stage. Default 1.0s.")
+    parser.add_argument('--save-video', type=str, default="", help="Path to save MP4 video (e.g. output.mp4).")
     
     args = parser.parse_args()
 
-    replay_evolution(args.file, stage_duration=args.time)
+    replay_evolution(args.file, stage_duration=args.time, save_video=args.save_video)
