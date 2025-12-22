@@ -99,9 +99,9 @@ def inspect_step(file_path, target_t):
     print(f"Inspecting Step {target_t} | Gradient: {grad_norm:.4f}")
     
     # Debug Text
-    env.client_id.addUserDebugText(f"Step {target_t} | Grad: {grad_norm:.4f}", [0, 0, 1.0], [0, 0, 0], textSize=1.0)
-    legend = "Black: Input Noise | Orange: Raw | Blue: Guided"
-    env.client_id.addUserDebugText(legend, [0, 0, 0.9], [0, 0, 0], textSize=0.8)
+    # env.client_id.addUserDebugText(f"Step {target_t} | Grad: {grad_norm:.4f}", [0, 0, 1.0], [0, 0, 0], textSize=1.0)
+    # legend = "Black: Input Noise | Orange: Raw | Blue: Guided"
+    # env.client_id.addUserDebugText(legend, [0, 0, 0.9], [0, 0, 0], textSize=0.8)
 
     # Draw !
     waypoint_stride = 5

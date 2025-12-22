@@ -138,9 +138,9 @@ def replay_evolution(file_path, speed=0.05, cam_dist=1.5, cam_yaw=90, cam_pitch=
         print(f"Showing Step {t} | Gradient: {grad_norm:.4f}")
 
         # Text
-        info_text = f"Step {t} | Grad: {grad_norm:.4f}"
-        current_debug_items.append(env.client_id.addUserDebugText(info_text, [0, 0, 1.0], [0, 0, 0], textSize=1.0))
-        current_debug_items.append(env.client_id.addUserDebugText("Black: In-Noise | Orange: Raw | Blue: Guided", [0, 0, 0.9], [0, 0, 0], textSize=0.8))
+        # info_text = f"Step {t} | Grad: {grad_norm:.4f}"
+        # current_debug_items.append(env.client_id.addUserDebugText(info_text, [0, 0, 1.0], [0, 0, 0], textSize=1.0))
+        # current_debug_items.append(env.client_id.addUserDebugText("Black: In-Noise | Orange: Raw | Blue: Guided", [0, 0, 0.9], [0, 0, 0], textSize=0.8))
 
         # Plot Input Noise (Black)
         if per_step_noise is not None:

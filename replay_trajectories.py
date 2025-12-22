@@ -98,65 +98,65 @@ def replay_trajectory(file_path, speed=0.05, cam_dist=1.5, cam_yaw=90, cam_pitch
         env.client_id.addUserDebugLine(traj_points[i], traj_points[i+1], lineColorRGB=col_blue, lineWidth=3.0)
     
     # --- Intermediates Visualization Start ---
-    if 'intermediate_trajectories' in data:
-        print("Visualizing intermediate noisy trajectories...")
-        intermediates = data['intermediate_trajectories']
-        # Sort timesteps in descending order (T -> 0)
-        timesteps = sorted(intermediates.keys(), reverse=True)
+    # if 'intermediate_trajectories' in data:
+    #     print("Visualizing intermediate noisy trajectories...")
+    #     intermediates = data['intermediate_trajectories']
+    #     # Sort timesteps in descending order (T -> 0)
+    #     timesteps = sorted([k for k in intermediates.keys() if isinstance(k, int)], reverse=True)
         
-        current_bodies = []
-        current_debug_items = []
+    #     current_bodies = []
+    #     current_debug_items = []
         
-        for t_step in timesteps:
-            step_data = intermediates[t_step]
-            stages = []
-            if show_raw:
-                stages.append(('Raw', step_data['raw']))
-            stages.append(('Guided', step_data['guided']))
+    #     for t_step in timesteps:
+    #         step_data = intermediates[t_step]
+    #         stages = []
+    #         if show_raw:
+    #             stages.append(('Raw', step_data['raw']))
+    #         stages.append(('Guided', step_data['guided']))
             
-            for stage_name, traj_data in stages:
-                if traj_data is None: continue
+    #         for stage_name, traj_data in stages:
+    #             if traj_data is None: continue
                 
-                # Cleanup previous
-                for b_id in current_bodies:
-                    env.client_id.removeBody(b_id)
-                current_bodies = []
-                for d_id in current_debug_items:
-                    env.client_id.removeUserDebugItem(d_id)
-                current_debug_items = []
+    #             # Cleanup previous
+    #             for b_id in current_bodies:
+    #                 env.client_id.removeBody(b_id)
+    #             current_bodies = []
+    #             for d_id in current_debug_items:
+    #                 env.client_id.removeUserDebugItem(d_id)
+    #             current_debug_items = []
                 
-                # Text
-                # Repositioning text to be more visible (centered and slightly lower)
-                text_position = [0, 0, 1.0] 
+    #             # Text
+    #             # Repositioning text to be more visible (centered and slightly lower)
+    #             text_position = [0, 0, 1.0] 
                 
-                # Format text
-                info_text = f"Stage: Step {t_step} - {stage_name}"
-                if 'gradient_norm' in step_data and step_data['gradient_norm'] > 0:
-                    info_text += f" | Grad: {step_data['gradient_norm']:.4f}"
+    #             # Format text
+    #             info_text = f"Stage: Step {t_step} - {stage_name}"
+    #             if 'gradient_norm' in step_data and step_data['gradient_norm'] > 0:
+    #                 info_text += f" | Grad: {step_data['gradient_norm']:.4f}"
                 
-                text_id = env.client_id.addUserDebugText(info_text, text_position, [0, 0, 0], textSize=1.2)
-                current_debug_items.append(text_id)
+    #             text_id = env.client_id.addUserDebugText(info_text, text_position, [0, 0, 0], textSize=1.2)
+    #             current_debug_items.append(text_id)
                 
-                current_traj = traj_data[0] if traj_data.ndim == 3 else traj_data
-                # Waypoints to show: Every Nth
-                waypoints_indices = range(0, current_traj.shape[1], waypoint_step)
-                
-                for wp_idx in waypoints_indices:
-                    if wp_idx >= current_traj.shape[1]: continue
-                    joints = current_traj[:, wp_idx]
-                    pos = env.forward_kinematics(joints)[:3, 3]
-                    
-                    vis_id = env.client_id.createVisualShape(shapeType=env.client_id.GEOM_SPHERE, radius=0.015, rgbaColor=[1, 0.5, 0, 0.6])
-                    body_id = env.client_id.createMultiBody(baseVisualShapeIndex=vis_id, basePosition=pos)
-                    current_bodies.append(body_id)
-                
-                time.sleep(stage_duration) 
-                
-        # Final Cleanup
-        for b_id in current_bodies:
-            env.client_id.removeBody(b_id)
-        for d_id in current_debug_items:
-            env.client_id.removeUserDebugItem(d_id)
+    #             current_traj = traj_data[0] if traj_data.ndim == 3 else traj_data
+    #             # Waypoints to show: Every Nth
+    #             waypoints_indices = range(0, current_traj.shape[1], waypoint_step)
+    #             
+    #             for wp_idx in waypoints_indices:
+    #                 if wp_idx >= current_traj.shape[1]: continue
+    #                 joints = current_traj[:, wp_idx]
+    #                 pos = env.forward_kinematics(joints)[:3, 3]
+    #                 
+    #                 vis_id = env.client_id.createVisualShape(shapeType=env.client_id.GEOM_SPHERE, radius=0.015, rgbaColor=[1, 0.5, 0, 0.6])
+    #                 body_id = env.client_id.createMultiBody(baseVisualShapeIndex=vis_id, basePosition=pos)
+    #                 current_bodies.append(body_id)
+    #             
+    #             time.sleep(stage_duration) 
+    #             
+    #     # Final Cleanup
+    #     for b_id in current_bodies:
+    #         env.client_id.removeBody(b_id)
+    #     for d_id in current_debug_items:
+    #         env.client_id.removeUserDebugItem(d_id)
             
     # --- Intermediates Visualization End ---
 
