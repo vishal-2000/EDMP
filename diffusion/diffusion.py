@@ -313,12 +313,24 @@ class Diffusion(Gaussian):
         intermediates = {} # Store intermediate steps: {step: {'raw': ..., 'guided': ...}}
         gradient_history = {}
 
+        if capture_intermediates:
+             intermediates['initial_noise'] = X_t.copy()
+
         # full_info = np.zeros((self.T+1, batch_size, 7, 50))
         for t in range(self.T, 0, -1):
             print(f"\rDenoising: " + str(t) + " ", end="")
 
             # full_info[t, :, : ,:] = X_t.copy()  # copy.deepcopy(X_t)
 
+            # Capture condition: Every 5 steps
+            should_capture = (t % 5 == 0)
+            
+            raw_state = None
+            current_noise = None
+
+            if capture_intermediates and should_capture:
+                 current_noise = X_t.copy()
+                 
             X_input = torch.tensor(X_t, dtype = torch.float32).to(self.device)
             time_in = torch.tensor([t], dtype = torch.float32).to(self.device)
 
@@ -326,10 +338,6 @@ class Diffusion(Gaussian):
 
             X_t = self.p_sample_using_posterior(X_t, t, epsilon)
             
-            # Capture condition: Every 5 steps
-            should_capture = (t % 5 == 0)
-            
-            raw_state = None
             if capture_intermediates and should_capture:
                  raw_state = X_t.copy()
 
@@ -363,7 +371,8 @@ class Diffusion(Gaussian):
                 intermediates[t] = {
                     'raw': raw_state,
                     'guided': X_t.copy(),
-                    'gradient_norm': grad_norm
+                    'gradient_norm': grad_norm,
+                    'noise': current_noise
                 }
 
             if grad_norm > 0:
