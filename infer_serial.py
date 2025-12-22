@@ -139,7 +139,7 @@ if __name__=='__main__':
 
             st4 = time.time()
 
-            trajectories, intermediates = diffuser.denoise_guided(model = denoiser,
+            trajectories, intermediates, grad_hist = diffuser.denoise_guided(model = denoiser,
                                                     guide = guide,
                                                     batch_size = total_batch_size,
                                                     traj_len = traj_len,
@@ -188,7 +188,8 @@ if __name__=='__main__':
                 'scene_type': scene_type,
                 'scene_num': scene_num,
                 'guide_index': guides[i] if i < len(guides) else -1, # Store guide info if relevant
-                'intermediate_trajectories': intermediates
+                'intermediate_trajectories': intermediates,
+                'gradient_history': grad_hist
             }
             
             save_path = os.path.join(save_dir, f'{scene_type}_scene_{scene_num}.pkl')

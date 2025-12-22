@@ -311,6 +311,7 @@ class Diffusion(Gaussian):
         period = 2
         
         intermediates = {} # Store intermediate steps: {step: {'raw': ..., 'guided': ...}}
+        gradient_history = {}
 
         # full_info = np.zeros((self.T+1, batch_size, 7, 50))
         for t in range(self.T, 0, -1):
@@ -332,11 +333,16 @@ class Diffusion(Gaussian):
             if capture_intermediates and should_capture:
                  raw_state = X_t.copy()
 
+            grad_norm = 0.0
             if (t%period) < (period/2):
                 if t >= 5:
                     clipped_joints = self.clip_joints(X_t[:, :, 1:-1])
                     # st = time.time()
                     gradient = guide.get_gradient(clipped_joints, start[:], goal[:], t)
+                    
+                    grad_norm = np.linalg.norm(gradient)
+                    print(f"Step {t}: Gradient Norm: {grad_norm:.4f}")
+
                     # print(f"\nGradient time: {time.time() - st}")
                     
                     # if guidance_schedule == 'constant':
@@ -356,8 +362,12 @@ class Diffusion(Gaussian):
             if capture_intermediates and should_capture:
                 intermediates[t] = {
                     'raw': raw_state,
-                    'guided': X_t.copy()
+                    'guided': X_t.copy(),
+                    'gradient_norm': grad_norm
                 }
+
+            if grad_norm > 0:
+                gradient_history[t] = grad_norm
 
             if condition:
                 X_t[:, :, 0] = start[:]
@@ -369,10 +379,5 @@ class Diffusion(Gaussian):
         # full_info[0, :, :, :] = X_t.copy()
 
         if capture_intermediates:
-             return X_t.copy(), intermediates
-        return X_t.copy() #, full_info.copy()
-        
-    
-
-
-
+             return X_t.copy(), intermediates, gradient_history
+        return X_t.copy()

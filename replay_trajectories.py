@@ -128,7 +128,13 @@ def replay_trajectory(file_path, speed=0.05, cam_dist=1.5, cam_yaw=90, cam_pitch
                 # Text
                 # Repositioning text to be more visible (centered and slightly lower)
                 text_position = [0, 0, 1.0] 
-                text_id = env.client_id.addUserDebugText(f"Stage: Step {t_step} - {stage_name}", text_position, [0, 0, 0], textSize=1.2)
+                
+                # Format text
+                info_text = f"Stage: Step {t_step} - {stage_name}"
+                if 'gradient_norm' in step_data and step_data['gradient_norm'] > 0:
+                    info_text += f" | Grad: {step_data['gradient_norm']:.4f}"
+                
+                text_id = env.client_id.addUserDebugText(info_text, text_position, [0, 0, 0], textSize=1.2)
                 current_debug_items.append(text_id)
                 
                 current_traj = traj_data[0] if traj_data.ndim == 3 else traj_data
